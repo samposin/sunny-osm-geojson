@@ -20,80 +20,83 @@ function Map() {
         });
         map.on('load', function() {
 
-            map.addLayer({
-                'id': '3d-buildings',
-                'source': 'composite',
-                'source-layer': 'building',
-                'filter': ['==', 'extrude', 'true'],
+            const layers = map.getStyle().layers;
+            const labelLayerId = layers.find(
+              (layer) => layer.type === 'symbol' && layer.layout['text-field']
+            ).id;
+      
+            map.addSource('data-buildings', {
+              type: 'geojson',
+              data: './data.geojson'
+            })
+      
+            // map.addLayer(
+            //   {
+            //     'id': 'add-buildings-without-height',
+            //     'source': 'data-buildings',
+            //     'filter': ['has', 'building:levels'],
+            //     'type': 'fill-extrusion',
+            //     'minzoom': 15,
+            //     'paint': {
+            //       'fill-extrusion-color': '#aaa',
+            //       'fill-extrusion-height': ["*", 3, ["to-number", ["get", "building:levels"]]],
+            //     }
+            //   },
+            //   labelLayerId
+            // );
+      
+            map.addLayer(
+              {
+                'id': 'add-buildings-with-height',
+                'source': 'data-buildings',
+                'filter': ['has', 'height'],
                 'type': 'fill-extrusion',
-                // 'minzoom': 15,
-                'zindex':1,
+                'minzoom': 15,
                 'paint': {
-                    // 'fill-extrusion-color': '#aaa',
-                    'fill-extrusion-color': [
-                        'interpolate',
-                        ['linear'],
-                        ['get', 'height'],
-                        10, '#F2F12D',
-                         25, '#EED322',
-                         50, '#E6B71E',
-                        100, '#FF4D27'
-                    ],
-                    'fill-extrusion-height': {
-                        'type': 'identity',
-                        'property': 'height'
-                    },
-                    'fill-extrusion-base': {
-                        'type': 'identity',
-                        'property': 'min_height'
-                    },
-                    'fill-extrusion-opacity': [
-                        'case',
-                        ['boolean', ['feature-state', 'hover'], false],
-                        0.5,
-                        1
-                    ]
+                  'fill-extrusion-color':[
+                    'interpolate',
+                    ['linear'],
+                    ["to-number", ["get", "height"]],
+                    10, '#F2F12D',
+                     20, '#EED322',
+                     30, '#E6B71E',
+                    50, '#FF4D27'
+                ],
+                'fill-extrusion-height': ["to-number", ["get", "height"]],
+                'fill-extrusion-opacity': 0.7
                 }
-            });
-            
-            // setTimeout(() => {
-            //     const featuresList = map.queryRenderedFeatures({
-                //             layers: ['3d-buildings']
-                //         });
- 
-                //         var num_arr = [];
-                //         featuresList.map((fe) => {
-            //             num_arr.push({...fe.properties, id: fe.id})
-            //         });
-            //         console.log(num_arr);
-            
-            //         // var num_arr = [], num_a;
-            //         // featuresList.map((fe) => {
-            //         //     num_a = fe.properties.height;
-            //         //     if(!num_arr.includes(num_a))
-            //         //         num_arr.push(num_a)
-            //         // });
-            //         // console.log(num_arr);
+              },
+              labelLayerId
+            );
 
-            // }, 5000);
             const popup = new mapboxgl.Popup({
                 closeButton: false,
                 closeOnClick: false
             });
-            map.on('click', '3d-buildings', async function(e) {
+            map.on('click', 'add-buildings-with-height', function(e) {
                 var feature = e.features[0];
-                const { id } = feature;
+                console.log(feature)
                 //popup
                 const coordinates = e.lngLat;
                 const prop = feature.properties;
-                const res = await axios.get(`./php-api/building-data.php?id=${id}`);
-                // console.log(res.data, "data");
-                if(res.data.status === '0')
-                return;
-                const description = `<p>geo id: ${res.data.building_info.geo_id}</p>
-                <p>height: ${prop.height}</p>
-                <p>sqr. ft: ${res.data.building_info.sqr_ft}</p>
-                <p>price: ${res.data.building_info.price}</p>`;
+                var description = `<p>id: ${prop.id}</p>
+                <p>osm id: ${prop.osm_id}</p>`;
+                if(prop['name'] !== undefined )
+                description += `<p>name: ${prop['name']}</p>`;
+                if(prop['addr:housenumber'] !== undefined )
+                description += `<p>house number: ${prop['addr:housenumber']}</p>`;
+                if(prop['addr:postcode'] !== undefined )
+                description += `<p>post code: ${prop['addr:postcode']}</p>`;
+                if(prop['addr:street'] !== undefined )
+                description += `<p>street: ${prop['addr:street']}</p>`;
+                if(prop['addr:city'] !== undefined )
+                description += `<p>city: ${prop['addr:city']}</p>`;
+                if(prop['addr:state'] !== undefined )
+                description += `<p>state: ${prop['addr:state']}</p>`;
+                if(prop.height !== undefined )
+                description += `<p>height: ${prop.height}</p>`;
+                if(prop.start_date !== undefined )
+                description += `<p>start date: ${prop.start_date}</p>`;
 
                 popup.setLngLat(coordinates).setHTML(description).addTo(map);
             });
@@ -107,41 +110,37 @@ function Map() {
                 'source': '3d-buildings-1',
                 'zindex':2,
                 'paint': {
-                    'fill-extrusion-color': [
+                    'fill-extrusion-color':[
                         'interpolate',
                         ['linear'],
-                        ['get', 'height'],
+                        ["to-number", ["get", "height"]],
                         10, '#F2F12D',
-                         25, '#EED322',
-                         50, '#E6B71E',
-                        100, '#FF4D27'
+                         20, '#EED322',
+                         30, '#E6B71E',
+                        50, '#FF4D27'
                     ],
-                    'fill-extrusion-height': {
-                        'type': 'identity',
-                        'property': 'height'
-                    },
-                    'fill-extrusion-base': {
-                        'type': 'identity',
-                        'property': 'min_height'
-                    },
-                    'fill-extrusion-opacity': 0.9
+                    'fill-extrusion-height': ["to-number", ["get", "height"]],
+                    'fill-extrusion-opacity': 1
                 }
             });
 
-            map.on('mousemove', '3d-buildings', function(e) {
+            
+            map.on('mousemove', 'add-buildings-with-height', function(e) {
                 
+                const bbox = [
+                    [e.point.x - 5, e.point.y - 5],
+                    [e.point.x + 5, e.point.y + 5]
+                ];
                 
                 var feature = e.features[0];
-                const { id } = feature;
-                if(id === null)
-                return
-                const featuresList = map.queryRenderedFeatures({
-                    layers: ['3d-buildings']
+                const { osm_id } = feature.properties;
+                const featuresList = map.queryRenderedFeatures(bbox, {
+                    layers: ['add-buildings-with-height']
                 });
                 var num_a, features_arr = [];
                 featuresList.map((fe) => {
-                    num_a = fe.id;
-                    if(num_a === id ){
+                    num_a = fe.properties.osm_id;
+                    if(num_a === osm_id ){
                         features_arr.push({
                             "type": "Feature",
                             "properties": { ...fe.properties },
@@ -157,11 +156,10 @@ function Map() {
 
                 map.getSource('3d-buildings-1').setData(clickedFeatures);
 
-
             });
     
             // Change it back to a pointer and reset opacity when it leaves.
-            map.on('mouseout', '3d-buildings', function(e) {
+            map.on('mouseout', 'add-buildings-with-height', function(e) {
                 popup.remove();
                 map.getSource('3d-buildings-1').setData(null);
             });
