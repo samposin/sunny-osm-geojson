@@ -36,11 +36,13 @@ function Map() {
                 loadBuildingsDataInLayer();
             });
 
-            const layers = map.getStyle().layers;
-            const labelLayerId = layers.find(
-              (layer) => layer.type === 'symbol' && layer.layout['text-field']
-            ).id;
+            
+            
             loadBuildingsDataInLayer();
+            // const layers = map.getStyle().layers;
+            // const labelLayerId = layers.find(
+            //   (layer) => layer.type === 'symbol' && layer.layout['text-field']
+            // ).id;
             // map.addSource('data-buildings', {
             //   type: 'geojson',
             //   data: './data.geojson'
