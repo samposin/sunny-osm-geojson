@@ -16,6 +16,11 @@ mapboxgl.workerClass = require('worker-loader!mapbox-gl/dist/mapbox-gl-csp-worke
 
     var mapObj;
 
+    const popup = new mapboxgl.Popup({
+        // closeButton: false,
+        // closeOnClick: false
+    });
+
 function Map() {
 
     useEffect(() => {
@@ -24,7 +29,7 @@ function Map() {
         const map = mapObj =  new mapboxgl.Map({
             container: 'map-container', // container ID
             style: 'mapbox://styles/mapbox/streets-v11', // style URL
-            center: [ -74.00618746876717, 40.71363155423475], // starting position [lng, lat]
+            center: [-71.09045761980153, 42.36298977290063],//[ -74.00618746876717, 40.71363155423475], // starting position [lng, lat]
             zoom: 15, // starting zoom
             pitch: 45,
             bearing: 45,
@@ -33,12 +38,54 @@ function Map() {
         map.on('load', function() {
 
             map.on('moveend', async function (e) {
-                loadBuildingsDataInLayer();
+                loadBuildingsDataUpdateLayer();
             });
 
             
             
             loadBuildingsDataInLayer();
+
+            //set up data sources
+            map.addSource('rhodeisland-source', {
+                'type': 'vector',
+                'url': 'mapbox://sunnysanwar.80in7wv8'
+            });
+
+            map.addLayer({
+                'id': 'rhodeisland-layer',
+                'type': 'fill',
+                'source': 'rhodeisland-source',
+                'source-layer': 'Massachusetts',
+                'paint': {
+                    'fill-outline-color': 'rgba(199,24,54,0)',
+                    'fill-color': '#807780',
+                    'fill-opacity': 1,
+                },
+            });
+
+            map.addSource('3d-buildings-1', {
+                'type': 'geojson',
+                'data': null
+            });
+            map.addLayer({
+                'id': '3d-buildings-1',
+                'type': 'fill-extrusion',
+                'source': '3d-buildings-1',
+                'zindex':2,
+                'paint': {
+                    'fill-extrusion-color':[
+                        'interpolate',
+                        ['linear'],
+                        ["to-number", ["get", "height"]],
+                        10, '#F2F12D',
+                         20, '#EED322',
+                         30, '#E6B71E',
+                        50, '#FF4D27'
+                    ],
+                    'fill-extrusion-height': ["to-number", ["get", "height"]],
+                    'fill-extrusion-opacity': 1
+                }
+            });
             // const layers = map.getStyle().layers;
             // const labelLayerId = layers.find(
             //   (layer) => layer.type === 'symbol' && layer.layout['text-field']
@@ -143,29 +190,7 @@ function Map() {
 
             //     popup.setLngLat(coordinates).setHTML(description).addTo(map);
             // });
-            // map.addSource('3d-buildings-1', {
-            // 'type': 'geojson',
-            // 'data': null
-            // });
-            // map.addLayer({
-            //     'id': '3d-buildings-1',
-            //     'type': 'fill-extrusion',
-            //     'source': '3d-buildings-1',
-            //     'zindex':2,
-            //     'paint': {
-            //         'fill-extrusion-color':[
-            //             'interpolate',
-            //             ['linear'],
-            //             ["to-number", ["get", "height"]],
-            //             10, '#F2F12D',
-            //              20, '#EED322',
-            //              30, '#E6B71E',
-            //             50, '#FF4D27'
-            //         ],
-            //         'fill-extrusion-height': ["to-number", ["get", "height"]],
-            //         'fill-extrusion-opacity': 1
-            //     }
-            // });
+
 
             
             // map.on('mousemove', 'add-buildings-with-height', function(e) {
@@ -211,6 +236,19 @@ function Map() {
 
     }, []);
 
+
+    const loadBuildingsDataUpdateLayer = async () => {
+
+        const { lat, lng } = mapObj.getCenter();
+        var currenZoom = Math.trunc(mapObj.getZoom());
+        var _x = long2tile(lng, currenZoom), _y = lat2tile(lat, currenZoom);
+        var res = await axios.get(`https://data.osmbuildings.org/0.2/anonymous/tile/${currenZoom}/${_x}/${_y}.json`);
+        if(res.status === 200){
+            mapObj.getSource('data-buildings-1').setData(res.data);
+        }
+
+    } 
+
     const loadBuildingsDataInLayer = async () => {
 
         const { lat, lng } = mapObj.getCenter();
@@ -218,7 +256,6 @@ function Map() {
         var _x = long2tile(lng, currenZoom), _y = lat2tile(lat, currenZoom);
 
         var res = await axios.get(`https://data.osmbuildings.org/0.2/anonymous/tile/${currenZoom}/${_x}/${_y}.json`);
-        console.log(res, "data", lng, lat, currenZoom, res.data);
         // res.data.features.map((co)=> {
         //     console.log(co);
         // })
@@ -252,6 +289,87 @@ function Map() {
                 'fill-extrusion-height': ["to-number", ["get", "height"]],
                 'fill-extrusion-opacity': 0.7
                 }
+            });
+            console.log("run")
+            mapObj.on('click', 'add-buildings-with-height-1', function(e) {
+                const bbox = [
+                    [e.point.x - 5, e.point.y - 5],
+                    [e.point.x + 5, e.point.y + 5]
+                ];
+                var feature = e.features[0];
+                const featuresList = mapObj.queryRenderedFeatures(bbox, {
+                    layers: ['rhodeisland-layer']
+                });
+                console.log(feature, featuresList);
+
+                // featuresList.map((fe) => {
+                //     if(feature.id === fe.properties.GEOID)
+                //         console.log(feature.id, fe.properties.GEOID);
+                // });
+                return;
+                var prop;
+                featuresList.map((fe) => {
+                    if(feature.id === fe.properties.OSM_ID){
+                        prop = fe.properties;
+                        console.log(feature, fe);
+                    }
+                });
+                const coordinates = e.lngLat;
+                var description = `<p>name: ${prop.NAME}</p>
+                <p>osm id: ${prop.OSM_ID}</p>`;
+                if(prop['HOUSENUMBE'] !== undefined )
+                description += `<p>house number: ${prop['HOUSENUMBE']}</p>`;
+                if(prop['addr:housenumber'] !== undefined )
+                description += `<p>house number: ${prop['addr:housenumber']}</p>`;
+                if(prop['POSTALCODE'] !== undefined )
+                description += `<p>post code: ${prop['POSTALCODE']}</p>`;
+                if(prop['STREET'] !== undefined )
+                description += `<p>street: ${prop['STREET']}</p>`;
+                if(prop.COUNTY !== undefined )
+                description += `<p>county: ${prop.COUNTY}</p>`;
+                if(prop['REGION'] !== undefined )
+                description += `<p>region: ${prop['REGION']}</p>`;
+                if(prop['COUNTRY'] !== undefined )
+                description += `<p>country: ${prop['COUNTRY']}</p>`;
+                if(prop.BUIDING !== undefined )
+                description += `<p>Building: ${prop.BUIDING}</p>`;
+                popup.setLngLat(coordinates).setHTML(description).addTo(mapObj);
+            });
+
+            mapObj.on('mousemove', 'add-buildings-with-height-1', function(e) {             
+                const bbox = [
+                    [e.point.x - 5, e.point.y - 5],
+                    [e.point.x + 5, e.point.y + 5]
+                ];
+                var feature = e.features[0];
+                const featuresList = mapObj.queryRenderedFeatures(bbox, {
+                    layers: ['rhodeisland-layer']
+                });
+                var num_a, features_arr = [];
+                featuresList.map((fe) => {
+                    num_a = fe.properties.OSM_ID;
+                    if(num_a === feature.id ){
+                        features_arr.push({
+                            "type": "Feature",
+                            "properties": { ...fe.properties },
+                            "geometry": { ...fe.geometry }
+                        });
+                    }
+                });
+
+                var clickedFeatures = {
+                    "type": "FeatureCollection",
+                        "features": features_arr
+                };
+
+                mapObj.getSource('3d-buildings-1').setData(clickedFeatures);
+
+            });
+    
+            // Change it back to a pointer and reset opacity when it leaves.
+            mapObj.on('mouseout', 'add-buildings-with-height-1', function(e) {
+                // popup.remove();
+                mapObj.getSource('3d-buildings-1').setData(null);
             });
         }
 
